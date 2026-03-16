@@ -1013,6 +1013,44 @@ body {
   color: #93c5fd;
 }
 
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+  padding: 16px;
+}
+
+.confirm-dialog {
+  width: min(520px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.confirm-dialog p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .processing-global {
   position: fixed;
   right: 16px;
@@ -1415,6 +1453,62 @@ body {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
+}
+
+.security-guide-panel {
+  margin-top: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  padding: 12px;
+}
+
+.security-guide-panel h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.security-guide-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.import-preview-panel {
+  flex: 1 1 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  padding: 12px;
+}
+
+.import-preview-panel h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.import-preview-panel p {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.import-preview-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.import-preview-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
 }
 
 .settings-stats ul {
@@ -2035,6 +2129,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 16px;
+  margin-top: 4px;
 }
 
 .config-row {
@@ -2042,6 +2137,7 @@ body {
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .config-row:last-child {
@@ -2052,6 +2148,28 @@ body {
   min-width: 120px;
   color: var(--secondary);
   font-size: 0.9em;
+}
+
+@media (max-width: 768px) {
+  .security-guide-panel {
+    margin-top: 12px;
+    margin-bottom: 16px;
+  }
+
+  .bridge-config {
+    padding: 12px;
+  }
+
+  .config-row {
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .config-row label {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .checkbox-label {

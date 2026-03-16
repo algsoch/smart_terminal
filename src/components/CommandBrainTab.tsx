@@ -117,6 +117,27 @@ export function CommandBrainTab() {
   const inputRef = useRef<HTMLInputElement>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'default' | 'danger';
+  } | null>(null);
+  const [showSecurityGuide, setShowSecurityGuide] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    fileName: string;
+    rawJson: string;
+    version: number | string;
+    exportedAt?: number;
+    counts: {
+      commands: number;
+      macros: number;
+      patterns: number;
+      favorites: number;
+      hasConfig: boolean;
+    };
+  } | null>(null);
 
   // Initialize CommandBrain and load suggestions
   useEffect(() => {
@@ -242,6 +263,36 @@ export function CommandBrainTab() {
       }
     } catch {
       showNotice(`Could not copy ${label}. Check clipboard permission for this site.`, 'error');
+    }
+  };
+
+  const requestConfirmation = useCallback((options: {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    tone?: 'default' | 'danger';
+  }): Promise<boolean> => {
+    if (confirmResolverRef.current) {
+      confirmResolverRef.current(false);
+      confirmResolverRef.current = null;
+    }
+
+    return new Promise((resolve) => {
+      confirmResolverRef.current = resolve;
+      setConfirmDialog({
+        title: options.title,
+        message: options.message,
+        confirmLabel: options.confirmLabel || 'Confirm',
+        tone: options.tone || 'default',
+      });
+    });
+  }, []);
+
+  const closeConfirmation = (accepted: boolean) => {
+    setConfirmDialog(null);
+    if (confirmResolverRef.current) {
+      confirmResolverRef.current(accepted);
+      confirmResolverRef.current = null;
     }
   };
 
@@ -550,7 +601,13 @@ export function CommandBrainTab() {
 
   const deleteSelectedHistory = async () => {
     if (selectedHistoryIds.size === 0) return;
-    if (!window.confirm(`Delete ${selectedHistoryIds.size} selected commands from history?`)) return;
+    const accepted = await requestConfirmation({
+      title: 'Delete Selected Commands',
+      message: `Delete ${selectedHistoryIds.size} selected commands from history? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!accepted) return;
     for (const id of selectedHistoryIds) {
       try { await CommandBrain.deleteCommand(id); } catch { /* best-effort */ }
     }
@@ -694,25 +751,42 @@ export function CommandBrainTab() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const proceed = window.confirm(
-      'Import will merge this JSON into your current local data. Continue?'
-    );
-    if (!proceed) {
-      event.target.value = '';
-      return;
-    }
-
     try {
       const jsonData = await file.text();
-      await CommandBrain.importData(jsonData);
-      await Promise.all([loadHistory(), loadMacros(), loadFavorites(), loadStats()]);
-      setDataStale(false);
-      showNotice(`Imported data from ${file.name}.`, 'success');
+      const parsed = JSON.parse(jsonData);
+      setImportPreview({
+        fileName: file.name,
+        rawJson: jsonData,
+        version: parsed?.version ?? 'unknown',
+        exportedAt: parsed?.exportedAt,
+        counts: {
+          commands: Array.isArray(parsed?.commands) ? parsed.commands.length : 0,
+          macros: Array.isArray(parsed?.macros) ? parsed.macros.length : 0,
+          patterns: Array.isArray(parsed?.patterns) ? parsed.patterns.length : 0,
+          favorites: Array.isArray(parsed?.favorites) ? parsed.favorites.length : 0,
+          hasConfig: !!parsed?.config,
+        },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : err == null ? '' : String(err);
       showNotice(`Import failed: ${message || 'Invalid JSON or storage error.'}`, 'error');
     } finally {
       event.target.value = '';
+    }
+  };
+
+  const confirmImportData = async () => {
+    if (!importPreview) return;
+
+    try {
+      await CommandBrain.importData(importPreview.rawJson);
+      await Promise.all([loadHistory(), loadMacros(), loadFavorites(), loadStats()]);
+      setDataStale(false);
+      showNotice(`Imported data from ${importPreview.fileName}.`, 'success');
+      setImportPreview(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : err == null ? '' : String(err);
+      showNotice(`Import failed: ${message || 'Invalid JSON or storage error.'}`, 'error');
     }
   };
 
@@ -977,7 +1051,7 @@ export function CommandBrainTab() {
       }, 2000);
     } catch (err) {
       console.error('Failed to execute command:', err);
-      alert(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      showNotice(`Execution failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
   };
 
@@ -1070,26 +1144,33 @@ export function CommandBrainTab() {
         folder || undefined,
         tags.length ? tags : undefined
       );
-      alert('✅ Saved command added!');
+      showNotice('Saved command added.', 'success');
       setDataStale(true);
       await loadFavorites();
     } catch (err) {
       console.error('Failed to add to favorites:', err);
-      alert(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      showNotice(`Failed to save command: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
   };
 
   // Remove from favorites
   const removeFromFavorites = async (favoriteId: string) => {
-    if (!confirm('Remove this saved command?')) return;
+    const accepted = await requestConfirmation({
+      title: 'Remove Saved Command',
+      message: 'Remove this saved command from Favorites?',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!accepted) return;
     
     try {
       await CommandBrain.removeFromFavorites(favoriteId);
       setDataStale(true);
       await loadFavorites();
+      showNotice('Saved command removed.', 'success');
     } catch (err) {
       console.error('Failed to remove favorite:', err);
-      alert(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      showNotice(`Failed to remove saved command: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
   };
 
@@ -1142,7 +1223,13 @@ export function CommandBrainTab() {
 
   // Execute macro
   const executeMacro = async (macro: Macro) => {
-    if (!confirm(`Execute macro "${macro.name}"? This will run ${macro.commands.length} commands.`)) {
+    const accepted = await requestConfirmation({
+      title: `Execute Macro: ${macro.name}`,
+      message: `This will run ${macro.commands.length} commands in sequence. Continue?`,
+      confirmLabel: 'Execute',
+      tone: 'default',
+    });
+    if (!accepted) {
       return;
     }
 
@@ -1233,13 +1320,32 @@ export function CommandBrainTab() {
   };
 
   const renderGlobalProcessing = () => {
-    if (!processing) return null;
-
     return (
-      <div className="processing-global">
-        <div className="spinner-small"></div>
-        <span>{processingStage || 'Working...'}</span>
-      </div>
+      <>
+        {processing && (
+          <div className="processing-global">
+            <div className="spinner-small"></div>
+            <span>{processingStage || 'Working...'}</span>
+          </div>
+        )}
+        {confirmDialog && (
+          <div className="confirm-overlay" role="dialog" aria-modal="true" aria-label={confirmDialog.title}>
+            <div className="confirm-dialog">
+              <h3>{confirmDialog.title}</h3>
+              <p>{confirmDialog.message}</p>
+              <div className="confirm-actions">
+                <button className="btn" onClick={() => closeConfirmation(false)}>Cancel</button>
+                <button
+                  className={`btn ${confirmDialog.tone === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+                  onClick={() => closeConfirmation(true)}
+                >
+                  {confirmDialog.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -1950,7 +2056,7 @@ export function CommandBrainTab() {
                       });
                       setTemplateVersion(v => v + 1);
                       
-                      alert('Template saved! Check the Templates tab.');
+                      showNotice('Template saved. Check the Templates tab.', 'success');
                     }}
                   >
                     💾 Save as Template
@@ -2063,7 +2169,7 @@ export function CommandBrainTab() {
                         `• Try a simpler version of the command\n` +
                         `• Check the safety warnings\n\n` +
                         `Command: ${preview.command.systemCommand}`;
-                      alert(help);
+                      setError(help);
                     }}
                   >
                     <span className="action-icon">💡</span>
@@ -2387,11 +2493,18 @@ export function CommandBrainTab() {
                           {!template.isBuiltIn && (
                             <button
                               className="btn-icon-small"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
-                                if (confirm(`Delete template "${template.name}"?`)) {
+                                const accepted = await requestConfirmation({
+                                  title: `Delete Template: ${template.name}`,
+                                  message: 'This custom template will be removed permanently.',
+                                  confirmLabel: 'Delete',
+                                  tone: 'danger',
+                                });
+                                if (accepted) {
                                   CommandTemplatesManager.deleteCustomTemplate(template.id);
                                   setTemplateVersion(v => v + 1);
+                                  showNotice('Template deleted.', 'success');
                                 }
                               }}
                               title="Delete template"
@@ -2799,9 +2912,16 @@ export function CommandBrainTab() {
                   <button 
                     className="btn btn-danger btn-sm"
                     onClick={async () => {
-                      if (confirm(`Delete macro "${macro.name}"?`)) {
+                      const accepted = await requestConfirmation({
+                        title: `Delete Macro: ${macro.name}`,
+                        message: 'This macro will be removed permanently.',
+                        confirmLabel: 'Delete',
+                        tone: 'danger',
+                      });
+                      if (accepted) {
                         await CommandBrain.deleteMacro(macro.id);
                         await loadMacros();
+                        showNotice('Macro deleted.', 'success');
                       }
                     }}
                   >
@@ -3022,15 +3142,29 @@ export function CommandBrainTab() {
           </div>
         )}
 
+        {renderGlobalProcessing()}
+
         <div className="settings-section">
           <h3>Execution Bridge Configuration</h3>
           <p className="bridge-info">
             Enable real command execution via local bridge server. 
             <a href="#" onClick={(e) => {
               e.preventDefault();
-              alert('See EXECUTION_SECURITY.md for detailed security information.');
+              setShowSecurityGuide((prev) => !prev);
             }}>Read security guide</a>
           </p>
+
+          {showSecurityGuide && (
+            <div className="security-guide-panel">
+              <h4>Execution Security Guide</h4>
+              <ul>
+                <li>Run the bridge only on localhost (never public internet).</li>
+                <li>Keep and rotate auth token regularly.</li>
+                <li>Use Simulate mode unless you need real command execution.</li>
+                <li>Review command previews before running caution-level commands.</li>
+              </ul>
+            </div>
+          )}
           
           <div className="bridge-config">
             <div className="config-row">
@@ -3096,7 +3230,7 @@ export function CommandBrainTab() {
                         const bridge = CommandBrain.getBridgeClient();
                         const keyResult = await bridge.getAuthKey();
                         if (!keyResult.success || !keyResult.key) {
-                          alert(`Failed to get auth key: ${keyResult.error || 'Unknown error'}`);
+                          showNotice(`Failed to get auth key: ${keyResult.error || 'Unknown error'}`, 'error');
                           return;
                         }
 
@@ -3105,9 +3239,9 @@ export function CommandBrainTab() {
                           authToken: keyResult.key,
                         });
                         loadBridgeConfig();
-                        alert('Auth key fetched and saved. Click Test Connection next.');
+                        showNotice('Auth key fetched and saved. Click Test Connection next.', 'success');
                       } catch (err) {
-                        alert(`Failed to get auth key: ${err instanceof Error ? err.message : String(err)}`);
+                        showNotice(`Failed to get auth key: ${err instanceof Error ? err.message : String(err)}`, 'error');
                       }
                     }}
                   >
@@ -3120,7 +3254,7 @@ export function CommandBrainTab() {
                     className="btn"
                     onClick={async () => {
                       const ok = await testBridgeConnection();
-                      alert(ok ? 'Bridge connected!' : 'Bridge connection failed!');
+                      showNotice(ok ? 'Bridge connected.' : 'Bridge connection failed.', ok ? 'success' : 'error');
                     }}
                   >
                     Test Connection
@@ -3177,7 +3311,7 @@ export function CommandBrainTab() {
                 onClick={() => {
                   clearModelCacheInfo(ModelCategory.Language);
                   refreshCacheHealth();
-                  alert('Cache metadata cleared. Actual downloaded model artifacts may still exist in browser storage.');
+                  showNotice('Cache metadata cleared. Downloaded model artifacts may still exist in browser storage.', 'info');
                 }}
               >
                 Clear Cache Metadata
@@ -3201,6 +3335,24 @@ export function CommandBrainTab() {
               Import Data
             </button>
 
+            {importPreview && (
+              <div className="import-preview-panel">
+                <h4>Import Preview: {importPreview.fileName}</h4>
+                <p>Version: {String(importPreview.version)}{importPreview.exportedAt ? ` · Exported: ${new Date(importPreview.exportedAt).toLocaleString()}` : ''}</p>
+                <ul>
+                  <li>Commands: {importPreview.counts.commands}</li>
+                  <li>Macros: {importPreview.counts.macros}</li>
+                  <li>Patterns: {importPreview.counts.patterns}</li>
+                  <li>Favorites: {importPreview.counts.favorites}</li>
+                  <li>Config: {importPreview.counts.hasConfig ? 'Included' : 'Not included'}</li>
+                </ul>
+                <div className="import-preview-actions">
+                  <button className="btn btn-primary" onClick={confirmImportData}>Import Now</button>
+                  <button className="btn" onClick={() => setImportPreview(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
             <button 
               className="btn"
               onClick={async () => {
@@ -3220,13 +3372,18 @@ export function CommandBrainTab() {
             <button 
               className="btn btn-danger"
               onClick={async () => {
-                if (confirm('Clear all data? This cannot be undone!')) {
-                  await CommandBrain.clearAllData();
-                  alert('All data cleared');
-                  await loadHistory();
-                  await loadMacros();
-                  await loadStats();
-                }
+                const accepted = await requestConfirmation({
+                  title: 'Clear All Data',
+                  message: 'This will permanently remove all commands, macros, favorites, patterns, and settings. Continue?',
+                  confirmLabel: 'Clear All',
+                  tone: 'danger',
+                });
+                if (!accepted) return;
+                await CommandBrain.clearAllData();
+                showNotice('All data cleared.', 'success');
+                await loadHistory();
+                await loadMacros();
+                await loadStats();
               }}
             >
               Clear All Data
