@@ -3,6 +3,9 @@
 **An offline-first command memory + execution copilot.** Never repeat the same command twice.
 
 <div style="margin: 20px 0;" align="center">
+  <a href="https://smart-terminal.onrender.com/">
+    <img alt="Live Demo" src="https://img.shields.io/badge/Live%20Demo-smart--terminal.onrender.com-brightgreen?style=flat-square&logo=render" />
+  </a>
   <a href="https://github.com/RunanywhereAI/runanywhere-sdks">
     <img alt="RunAnywhere SDK" src="https://img.shields.io/badge/RunAnywhere-SDK-1f4788?style=flat-square" />
   </a>
@@ -10,6 +13,8 @@
   <img alt="Solution" src="https://img.shields.io/badge/Solution-2d5016?style=flat-square" />
   <img alt="Creator" src="https://img.shields.io/badge/by%20%40algsoch-434343?style=flat-square" />
 </div>
+
+> 🌐 **Live at [smart-terminal.onrender.com](https://smart-terminal.onrender.com/)**
 
 **CommandBrain** is a React + TypeScript browser app that transforms natural language into executable system commands. Built locally-first with `@runanywhere/web` + WebAssembly—your data stays on your machine.
 
