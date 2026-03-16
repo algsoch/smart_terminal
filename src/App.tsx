@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { initSDK, getAccelerationMode } from './runanywhere';
+import { ModelCategory } from '@runanywhere/web';
 import { ChatTab } from './components/ChatTab';
 import { VisionTab } from './components/VisionTab';
 import { VoiceTab } from './components/VoiceTab';
 import { CommandBrainTab } from './components/CommandBrainTab';
+import { useModelLoader } from './hooks/useModelLoader';
 
 type Tab = 'commandbrain' | 'chat' | 'vision' | 'voice';
 const SHOW_EXTRA_TABS = false;
@@ -12,6 +14,7 @@ export function App() {
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkError, setSdkError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('commandbrain');
+  const llmLoader = useModelLoader(ModelCategory.Language);
   const [uiZoom, setUiZoom] = useState<number>(() => {
     const raw = localStorage.getItem('runanywhere_ui_zoom');
     const parsed = raw ? Number(raw) : 1;
@@ -61,6 +64,11 @@ export function App() {
       <header className="app-header">
         <h1>RunAnywhere CommandBrain</h1>
         {accel && <span className="badge">{accel === 'webgpu' ? 'WebGPU' : 'CPU'}</span>}
+        {llmLoader.state === 'ready' && llmLoader.cachedModelName && (
+          <span className="model-loaded-tag" title={`Loaded model: ${llmLoader.cachedModelName}`}>
+            {llmLoader.cachedModelName}
+          </span>
+        )}
         <div className="zoom-controls" role="group" aria-label="Zoom controls">
           <button className="zoom-btn" type="button" onClick={() => adjustZoom(-0.1)} aria-label="Zoom out">A-</button>
           <button className="zoom-btn zoom-reset" type="button" onClick={resetZoom} aria-label="Reset zoom">

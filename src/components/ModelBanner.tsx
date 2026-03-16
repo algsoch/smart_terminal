@@ -6,6 +6,7 @@ interface Props {
   error: string | null;
   cachedModelName?: string | null;
   lastLoadedAt?: number | null;
+  downloadingModelName?: string | null;
   onLoad: () => void;
   label: string;
 }
@@ -16,6 +17,7 @@ export function ModelBanner({
   error,
   cachedModelName,
   lastLoadedAt,
+  downloadingModelName,
   onLoad,
   label,
 }: Props) {
@@ -35,7 +37,13 @@ export function ModelBanner({
       )}
       {state === 'downloading' && (
         <>
-          <span>Downloading {label} model... {(progress * 100).toFixed(0)}%</span>
+          <span>
+            Downloading {label} model
+            {downloadingModelName ? (
+              <> &mdash; <strong>{downloadingModelName}</strong></>
+            ) : null}
+            ... {(progress * 100).toFixed(0)}%
+          </span>
           <progress className="progress-native" value={Math.round(progress * 100)} max={100} />
         </>
       )}

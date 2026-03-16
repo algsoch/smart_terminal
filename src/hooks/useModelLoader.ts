@@ -9,6 +9,7 @@ interface ModelLoaderResult {
   error: string | null;
   cachedModelName: string | null;
   lastLoadedAt: number | null;
+  downloadingModelName: string | null;
   ensure: () => Promise<boolean>;
 }
 
@@ -66,6 +67,7 @@ export function useModelLoader(category: ModelCategory, coexist = false): ModelL
   const [error, setError] = useState<string | null>(null);
   const [cachedModelName, setCachedModelName] = useState<string | null>(cached?.modelName ?? null);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(cached?.loadedAt ?? null);
+  const [downloadingModelName, setDownloadingModelName] = useState<string | null>(null);
   const loadingRef = useRef(false);
 
   const ensure = useCallback(async (): Promise<boolean> => {
@@ -93,6 +95,7 @@ export function useModelLoader(category: ModelCategory, coexist = false): ModelL
       if (model.status !== 'downloaded' && model.status !== 'loaded') {
         setState('downloading');
         setProgress(0);
+        setDownloadingModelName(model.name);
 
         const unsub = EventBus.shared.on('model.downloadProgress', (evt) => {
           if (evt.modelId === model.id) {
@@ -117,6 +120,7 @@ export function useModelLoader(category: ModelCategory, coexist = false): ModelL
         writeCacheInfo(category, cacheInfo);
         setCachedModelName(cacheInfo.modelName);
         setLastLoadedAt(cacheInfo.loadedAt);
+        setDownloadingModelName(null);
         setState('ready');
         return true;
       } else {
@@ -133,5 +137,5 @@ export function useModelLoader(category: ModelCategory, coexist = false): ModelL
     }
   }, [category, coexist]);
 
-  return { state, progress, error, cachedModelName, lastLoadedAt, ensure };
+  return { state, progress, error, cachedModelName, lastLoadedAt, downloadingModelName, ensure };
 }

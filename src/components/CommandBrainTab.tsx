@@ -49,7 +49,14 @@ export function CommandBrainTab() {
   const [analyticsCategoryFilter, setAnalyticsCategoryFilter] = useState<string>('All');
   const [analyticsSafetyFilter, setAnalyticsSafetyFilter] = useState<string>('All');
   const [runningCommandId, setRunningCommandId] = useState<string | null>(null);
-  const [dismissedReminderKey, setDismissedReminderKey] = useState<string>('');
+  const [dismissedReminderKeys, setDismissedReminderKeys] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('commandbrain_dismissed_reminders');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [reminderSnoozeMap, setReminderSnoozeMap] = useState<Record<string, number>>(() => {
     try {
       const raw = localStorage.getItem('commandbrain_reminder_snooze_map');
@@ -853,6 +860,14 @@ export function CommandBrainTab() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('commandbrain_dismissed_reminders', JSON.stringify(dismissedReminderKeys.slice(-100)));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [dismissedReminderKeys]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('commandbrain_reminder_snooze_map', JSON.stringify(reminderSnoozeMap));
     } catch {
       // ignore storage quota errors
@@ -1537,10 +1552,10 @@ export function CommandBrainTab() {
 
     const best = candidates.find((item) => {
       const snoozedUntil = reminderSnoozeMap[item.reminderKey] || 0;
-      return item.reminderKey !== dismissedReminderKey && snoozedUntil <= now;
+      return !dismissedReminderKeys.includes(item.reminderKey) && snoozedUntil <= now;
     });
     return best || null;
-  }, [history, dismissedReminderKey, reminderSnoozeMap]);
+  }, [history, dismissedReminderKeys, reminderSnoozeMap]);
 
   const savedFolders = useMemo(() => {
     const folders = new Set<string>();
@@ -1654,6 +1669,7 @@ export function CommandBrainTab() {
           error={loader.error}
           cachedModelName={loader.cachedModelName}
           lastLoadedAt={loader.lastLoadedAt}
+          downloadingModelName={loader.downloadingModelName}
           onLoad={loader.ensure}
           label="LLM (CommandBrain)"
         />
@@ -1713,8 +1729,14 @@ export function CommandBrainTab() {
                 <strong>Reminder</strong>
                 <p>You use this command often. Want to use it again?</p>
               </div>
-              <button className="btn btn-sm" onClick={() => setDismissedReminderKey(reminderCandidate.reminderKey)}>
-                Dismiss
+              <button
+                className="reminder-close-btn"
+                title="Dismiss this reminder"
+                onClick={() => setDismissedReminderKeys((prev) =>
+                  prev.includes(reminderCandidate.reminderKey) ? prev : [...prev, reminderCandidate.reminderKey]
+                )}
+              >
+                ×
               </button>
             </div>
             <div className="reminder-command">{reminderCandidate.naturalLanguage}</div>
